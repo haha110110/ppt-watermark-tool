@@ -12,17 +12,17 @@ class TaskManager:
         self.finish_callback = finish_callback
         self.is_running = False
         
-    def start_processing(self, files, output_dir, watermark_path, scale_percent, resolution_mode, quality):
+    def start_processing(self, files, output_dir, watermark_path, scale_percent, resolution_mode, quality, output_format="pptx"):
         if self.is_running:
             return
         self.is_running = True
         
         # Run in a background thread to prevent UI freezing
-        thread = threading.Thread(target=self._run, args=(files, output_dir, watermark_path, scale_percent, resolution_mode, quality))
+        thread = threading.Thread(target=self._run, args=(files, output_dir, watermark_path, scale_percent, resolution_mode, quality, output_format))
         thread.daemon = True
         thread.start()
         
-    def _run(self, files, output_dir, watermark_path, scale_percent, resolution_mode, quality):
+    def _run(self, files, output_dir, watermark_path, scale_percent, resolution_mode, quality, output_format):
         total_files = len(files)
         temp_dir = tempfile.mkdtemp()
         
@@ -38,14 +38,14 @@ class TaskManager:
                 name, ext = os.path.splitext(filename)
                 self.ui_callback(f"({i+1}/{total_files}) 开始处理: {filename}", i, total_files)
                 
-                # Force output to be .pptx
-                out_filename = f"{name}.pptx"
+                # Force output to be output_format
+                out_filename = f"{name}.{output_format}"
                 out_path = os.path.join(output_dir, out_filename)
                 
                 # Check for output naming conflict
                 if os.path.abspath(out_path) == os.path.abspath(input_file):
                     # Append _wm to prevent overwrite
-                    out_path = os.path.join(output_dir, f"{name}_wm.pptx")
+                    out_path = os.path.join(output_dir, f"{name}_wm.{output_format}")
                     
                 # Clean temp dir for this run
                 for f in os.listdir(temp_dir):
@@ -74,6 +74,7 @@ class TaskManager:
                         temp_dir, 
                         wm_engine, 
                         resolution_mode=resolution_mode,
+                        output_format=output_format,
                         progress_callback=progress_cb
                     )
                 except Exception as e:

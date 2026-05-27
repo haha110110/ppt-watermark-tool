@@ -12,7 +12,7 @@ class PdfEngine:
             CoUninitialize()
             raise e
         
-    def process_presentation(self, input_path, output_path, temp_folder, watermark_engine, resolution_mode="1080p", progress_callback=None):
+    def process_presentation(self, input_path, output_path, temp_folder, watermark_engine, resolution_mode="1080p", output_format="pptx", progress_callback=None):
         input_path = os.path.abspath(input_path)
         output_path = os.path.abspath(output_path)
         
@@ -55,35 +55,49 @@ class PdfEngine:
             doc.close()
             doc = None
             
-            if progress_callback:
-                progress_callback("正在将处理好的图片拼合成全新 PPT...")
-                
-            new_presentation = self.app.Presentations.Add(WithWindow=False)
-            
-            if is_16_9:
-                new_presentation.PageSetup.SlideWidth = 960
-                new_presentation.PageSetup.SlideHeight = 540
+            if output_format == "pdf":
+                if progress_callback:
+                    progress_callback("正在将处理好的图片拼合成全新 PDF...")
+                new_doc = fitz.open()
+                for img_path in image_paths:
+                    img_doc = fitz.open(img_path)
+                    pdfbytes = img_doc.convert_to_pdf()
+                    img_pdf = fitz.open("pdf", pdfbytes)
+                    new_doc.insert_pdf(img_pdf)
+                    img_doc.close()
+                    img_pdf.close()
+                new_doc.save(output_path, garbage=3, deflate=True)
+                new_doc.close()
             else:
-                new_presentation.PageSetup.SlideWidth = 720
-                new_presentation.PageSetup.SlideHeight = 540
+                if progress_callback:
+                    progress_callback("正在将处理好的图片拼合成全新 PPT...")
+                    
+                new_presentation = self.app.Presentations.Add(WithWindow=False)
                 
-            ppLayoutBlank = 12
-            
-            for i, img_path in enumerate(image_paths):
-                new_slide = new_presentation.Slides.Add(i + 1, ppLayoutBlank) 
-                new_slide.Shapes.AddPicture(
-                    img_path, 
-                    LinkToFile=0, 
-                    SaveWithDocument=-1, 
-                    Left=0, 
-                    Top=0, 
-                    Width=new_presentation.PageSetup.SlideWidth, 
-                    Height=new_presentation.PageSetup.SlideHeight
-                )
+                if is_16_9:
+                    new_presentation.PageSetup.SlideWidth = 960
+                    new_presentation.PageSetup.SlideHeight = 540
+                else:
+                    new_presentation.PageSetup.SlideWidth = 720
+                    new_presentation.PageSetup.SlideHeight = 540
+                    
+                ppLayoutBlank = 12
                 
-            new_presentation.SaveAs(output_path)
-            new_presentation.Close()
-            new_presentation = None
+                for i, img_path in enumerate(image_paths):
+                    new_slide = new_presentation.Slides.Add(i + 1, ppLayoutBlank) 
+                    new_slide.Shapes.AddPicture(
+                        img_path, 
+                        LinkToFile=0, 
+                        SaveWithDocument=-1, 
+                        Left=0, 
+                        Top=0, 
+                        Width=new_presentation.PageSetup.SlideWidth, 
+                        Height=new_presentation.PageSetup.SlideHeight
+                    )
+                    
+                new_presentation.SaveAs(output_path)
+                new_presentation.Close()
+                new_presentation = None
             
         finally:
             if doc is not None:

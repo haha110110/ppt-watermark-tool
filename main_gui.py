@@ -1,7 +1,10 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
+import json
 from task_manager import TaskManager
+
+CONFIG_FILE = "config.json"
 
 class AppGUI(tk.Tk):
     def __init__(self):
@@ -12,11 +15,51 @@ class AppGUI(tk.Tk):
         self.files = []
         self.watermark_path = ""
         self.output_dir = ""
+        self.last_input_dir = ""
+        self.output_format_var = tk.StringVar(value="pptx")
         
         self.task_manager = TaskManager(self.update_progress, self.on_finish)
         
         self.create_widgets()
+        self.load_config()
         
+    def load_config(self):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    
+                    wm_path = config.get("watermark_path", "")
+                    if wm_path and os.path.exists(wm_path):
+                        self.watermark_path = wm_path
+                        self.wm_var.set(wm_path)
+                        
+                    out_dir = config.get("output_dir", "")
+                    if out_dir and os.path.exists(out_dir):
+                        self.output_dir = out_dir
+                        self.out_var.set(out_dir)
+                        
+                    self.last_input_dir = config.get("last_input_dir", "")
+                    
+                    fmt = config.get("output_format", "pptx")
+                    if fmt in ["pptx", "pdf"]:
+                        self.output_format_var.set(fmt)
+            except:
+                pass
+
+    def save_config(self):
+        config = {
+            "watermark_path": self.watermark_path,
+            "output_dir": self.output_dir,
+            "last_input_dir": self.last_input_dir,
+            "output_format": self.output_format_var.get()
+        }
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+        except:
+            pass
+
     def create_widgets(self):
         main_frame = ttk.Frame(self, padding="15")
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -89,8 +132,15 @@ class AppGUI(tk.Tk):
         q_entry.pack(side=tk.LEFT)
         ttk.Label(rq_frame, text="%").pack(side=tk.LEFT)
         
-        # 5. Output Directory
-        ttk.Label(main_frame, text="5. 选择输出文件夹 (同名防覆盖):").pack(anchor=tk.W, pady=(0,5))
+        # 5. Output Format
+        format_frame = ttk.Frame(main_frame)
+        format_frame.pack(fill=tk.X, pady=(0, 15))
+        ttk.Label(format_frame, text="5. 选择输出格式:").pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Radiobutton(format_frame, text="PPT (.pptx)", variable=self.output_format_var, value="pptx").pack(side=tk.LEFT, padx=(0,10))
+        ttk.Radiobutton(format_frame, text="PDF (.pdf)", variable=self.output_format_var, value="pdf").pack(side=tk.LEFT)
+        
+        # 6. Output Directory
+        ttk.Label(main_frame, text="6. 选择输出文件夹 (同名防覆盖):").pack(anchor=tk.W, pady=(0,5))
         out_frame = ttk.Frame(main_frame)
         out_frame.pack(fill=tk.X, pady=(0, 20))
         
@@ -98,7 +148,7 @@ class AppGUI(tk.Tk):
         ttk.Entry(out_frame, textvariable=self.out_var, state='readonly').pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         ttk.Button(out_frame, text="浏览...", command=self.select_output).pack(side=tk.RIGHT)
         
-        # 6. Execution & Progress
+        # 7. Execution & Progress
         self.start_btn = ttk.Button(main_frame, text="开始处理", command=self.start_processing)
         # Apply standard accent style if available, otherwise fallback
         try:
@@ -115,11 +165,15 @@ class AppGUI(tk.Tk):
         ttk.Label(main_frame, textvariable=self.status_var).pack(anchor=tk.W)
         
     def add_files(self):
+        initialdir = self.last_input_dir if self.last_input_dir and os.path.exists(self.last_input_dir) else None
         files = filedialog.askopenfilenames(
+            initialdir=initialdir,
             title="选择 PPT 或 PDF 文件",
             filetypes=[("PowerPoint & PDF Files", "*.ppt *.pptx *.pdf"), ("All Files", "*.*")]
         )
-        for f in files:
+        if files:
+            self.last_input_dir = os.path.dirname(files[0])
+            for f in files:
             if f not in self.files:
                 self.files.append(f)
                 self.file_listbox.insert(tk.END, os.path.basename(f))
@@ -162,6 +216,7 @@ class AppGUI(tk.Tk):
             
         self.start_btn.config(state=tk.DISABLED)
         self.progress_var.set(0)
+        self.save_config()
         
         # We start the background thread
         self.task_manager.start_processing(
@@ -170,7 +225,8 @@ class AppGUI(tk.Tk):
             watermark_path=self.watermark_path,
             scale_percent=scale_val,
             resolution_mode=self.res_var.get(),
-            quality=quality_val
+            quality=quality_val,
+            output_format=self.output_format_var.get()
         )
         
     def update_progress(self, message, current_file_idx, total_files):

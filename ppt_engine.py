@@ -33,7 +33,7 @@ class PptEngine:
             target_width = 1440 if target_height == 1080 else 960
             return target_width, target_height, False
             
-    def process_presentation(self, input_path, output_path, temp_folder, watermark_engine, resolution_mode="1080p", progress_callback=None):
+    def process_presentation(self, input_path, output_path, temp_folder, watermark_engine, resolution_mode="1080p", output_format="pptx", progress_callback=None):
         input_path = os.path.abspath(input_path)
         output_path = os.path.abspath(output_path)
         
@@ -72,42 +72,53 @@ class PptEngine:
             presentation.Close()
             presentation = None
             
-            # 3. Create new presentation for reassembly
-            if progress_callback:
-                progress_callback("正在拼合新的PPT...")
-                
-            new_presentation = self.app.Presentations.Add(WithWindow=False)
-            
-            # Set to standard 16:9 or 4:3 in points (1 inch = 72 points)
-            # 16:9 -> 13.333 inches x 7.5 inches -> 960 x 540 points
-            # 4:3 -> 10 inches x 7.5 inches -> 720 x 540 points
-            if is_16_9:
-                new_presentation.PageSetup.SlideWidth = 960
-                new_presentation.PageSetup.SlideHeight = 540
+            # 3. Create new presentation/pdf for reassembly
+            if output_format == "pdf":
+                import fitz
+                if progress_callback:
+                    progress_callback("正在将处理好的图片拼合成全新 PDF...")
+                new_doc = fitz.open()
+                for img_path in image_paths:
+                    img_doc = fitz.open(img_path)
+                    pdfbytes = img_doc.convert_to_pdf()
+                    img_pdf = fitz.open("pdf", pdfbytes)
+                    new_doc.insert_pdf(img_pdf)
+                    img_doc.close()
+                    img_pdf.close()
+                new_doc.save(output_path, garbage=3, deflate=True)
+                new_doc.close()
             else:
-                new_presentation.PageSetup.SlideWidth = 720
-                new_presentation.PageSetup.SlideHeight = 540
+                if progress_callback:
+                    progress_callback("正在拼合新的PPT...")
+                    
+                new_presentation = self.app.Presentations.Add(WithWindow=False)
                 
-            # ppLayoutBlank = 12
-            ppLayoutBlank = 12
-            
-            for i, img_path in enumerate(image_paths):
-                new_slide = new_presentation.Slides.Add(i + 1, ppLayoutBlank) 
-                # AddPicture(FileName, LinkToFile, SaveWithDocument, Left, Top, Width, Height)
-                new_slide.Shapes.AddPicture(
-                    img_path, 
-                    LinkToFile=0, 
-                    SaveWithDocument=-1, 
-                    Left=0, 
-                    Top=0, 
-                    Width=new_presentation.PageSetup.SlideWidth, 
-                    Height=new_presentation.PageSetup.SlideHeight
-                )
+                # Set to standard 16:9 or 4:3 in points (1 inch = 72 points)
+                if is_16_9:
+                    new_presentation.PageSetup.SlideWidth = 960
+                    new_presentation.PageSetup.SlideHeight = 540
+                else:
+                    new_presentation.PageSetup.SlideWidth = 720
+                    new_presentation.PageSetup.SlideHeight = 540
+                    
+                ppLayoutBlank = 12
                 
-            # Save new presentation
-            new_presentation.SaveAs(output_path)
-            new_presentation.Close()
-            new_presentation = None
+                for i, img_path in enumerate(image_paths):
+                    new_slide = new_presentation.Slides.Add(i + 1, ppLayoutBlank) 
+                    new_slide.Shapes.AddPicture(
+                        img_path, 
+                        LinkToFile=0, 
+                        SaveWithDocument=-1, 
+                        Left=0, 
+                        Top=0, 
+                        Width=new_presentation.PageSetup.SlideWidth, 
+                        Height=new_presentation.PageSetup.SlideHeight
+                    )
+                    
+                # Save new presentation
+                new_presentation.SaveAs(output_path)
+                new_presentation.Close()
+                new_presentation = None
             
         finally:
             if presentation is not None:
