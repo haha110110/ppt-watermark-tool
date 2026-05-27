@@ -35,14 +35,17 @@ class TaskManager:
             
             for i, input_file in enumerate(files):
                 filename = os.path.basename(input_file)
+                name, ext = os.path.splitext(filename)
                 self.ui_callback(f"({i+1}/{total_files}) 开始处理: {filename}", i, total_files)
                 
+                # Force output to be .pptx
+                out_filename = f"{name}.pptx"
+                out_path = os.path.join(output_dir, out_filename)
+                
                 # Check for output naming conflict
-                out_path = os.path.join(output_dir, filename)
                 if os.path.abspath(out_path) == os.path.abspath(input_file):
                     # Append _wm to prevent overwrite
-                    name, ext = os.path.splitext(filename)
-                    out_path = os.path.join(output_dir, f"{name}_wm{ext}")
+                    out_path = os.path.join(output_dir, f"{name}_wm.pptx")
                     
                 # Clean temp dir for this run
                 for f in os.listdir(temp_dir):

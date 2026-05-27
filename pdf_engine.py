@@ -1,16 +1,23 @@
 import os
 import fitz  # PyMuPDF
+import win32com.client
+from pythoncom import CoInitialize, CoUninitialize
 
 class PdfEngine:
     def __init__(self):
-        pass
+        CoInitialize()
+        try:
+            self.app = win32com.client.Dispatch("PowerPoint.Application")
+        except Exception as e:
+            CoUninitialize()
+            raise e
         
     def process_presentation(self, input_path, output_path, temp_folder, watermark_engine, resolution_mode="1080p", progress_callback=None):
         input_path = os.path.abspath(input_path)
         output_path = os.path.abspath(output_path)
         
         doc = None
-        new_doc = None
+        new_presentation = None
         
         try:
             doc = fitz.open(input_path)
@@ -18,6 +25,12 @@ class PdfEngine:
             image_paths = []
             
             target_height = 1080 if resolution_mode == "1080p" else 720
+            
+            # Detect aspect ratio from the first page
+            first_page_rect = doc[0].rect
+            ratio = first_page_rect.width / first_page_rect.height
+            midpoint = (16/9 + 4/3) / 2
+            is_16_9 = ratio >= midpoint
             
             for i in range(total_pages):
                 if progress_callback:
@@ -43,35 +56,46 @@ class PdfEngine:
             doc = None
             
             if progress_callback:
-                progress_callback("正在拼合全新的 PDF...")
+                progress_callback("正在将处理好的图片拼合成全新 PPT...")
                 
-            new_doc = fitz.open()
+            new_presentation = self.app.Presentations.Add(WithWindow=False)
+            
+            if is_16_9:
+                new_presentation.PageSetup.SlideWidth = 960
+                new_presentation.PageSetup.SlideHeight = 540
+            else:
+                new_presentation.PageSetup.SlideWidth = 720
+                new_presentation.PageSetup.SlideHeight = 540
+                
+            ppLayoutBlank = 12
             
             for i, img_path in enumerate(image_paths):
-                # Open the JPG image as a document to easily insert it into the new PDF
-                img_doc = fitz.open(img_path)
-                # Convert the image document to a PDF document bytes, then open as pdf
-                pdfbytes = img_doc.convert_to_pdf()
-                img_pdf = fitz.open("pdf", pdfbytes)
+                new_slide = new_presentation.Slides.Add(i + 1, ppLayoutBlank) 
+                new_slide.Shapes.AddPicture(
+                    img_path, 
+                    LinkToFile=0, 
+                    SaveWithDocument=-1, 
+                    Left=0, 
+                    Top=0, 
+                    Width=new_presentation.PageSetup.SlideWidth, 
+                    Height=new_presentation.PageSetup.SlideHeight
+                )
                 
-                # Insert the single page into our new document
-                new_doc.insert_pdf(img_pdf)
-                img_doc.close()
-                img_pdf.close()
-                
-            # Save the new PDF with garbage collection and deflation for optimization
-            new_doc.save(output_path, garbage=3, deflate=True)
-            new_doc.close()
-            new_doc = None
+            new_presentation.SaveAs(output_path)
+            new_presentation.Close()
+            new_presentation = None
             
         finally:
             if doc is not None:
                 try: doc.close()
                 except: pass
-            if new_doc is not None:
-                try: new_doc.close()
+            if new_presentation is not None:
+                try: new_presentation.Close()
                 except: pass
 
     def quit(self):
-        # PyMuPDF doesn't leave ghost processes, so no cleanup needed here
-        pass
+        try:
+            self.app.Quit()
+        except:
+            pass
+        CoUninitialize()
