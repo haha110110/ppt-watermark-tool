@@ -3,6 +3,7 @@ import tempfile
 import os
 import shutil
 from ppt_engine import PptEngine
+from pdf_engine import PdfEngine
 from watermark_engine import WatermarkEngine
 
 class TaskManager:
@@ -23,13 +24,14 @@ class TaskManager:
         
     def _run(self, files, output_dir, watermark_path, scale_percent, resolution_mode, quality):
         total_files = len(files)
-        engine = None
         temp_dir = tempfile.mkdtemp()
         
+        ppt_engine = None
+        pdf_engine = None
+        
         try:
-            # Initialize engines
+            # Initialize common engine
             wm_engine = WatermarkEngine(watermark_path, scale_percent=scale_percent, quality=quality)
-            engine = PptEngine()
             
             for i, input_file in enumerate(files):
                 filename = os.path.basename(input_file)
@@ -51,6 +53,18 @@ class TaskManager:
                     self.ui_callback(f"({i+1}/{total_files}) {filename} - {msg}", i, total_files)
                     
                 try:
+                    ext = os.path.splitext(filename)[1].lower()
+                    
+                    # Dynamically instantiate and route to the correct engine
+                    if ext == ".pdf":
+                        if pdf_engine is None:
+                            pdf_engine = PdfEngine()
+                        engine = pdf_engine
+                    else:
+                        if ppt_engine is None:
+                            ppt_engine = PptEngine()
+                        engine = ppt_engine
+                        
                     engine.process_presentation(
                         input_file, 
                         out_path, 
@@ -68,8 +82,10 @@ class TaskManager:
             self.ui_callback(f"致命错误: {str(e)}", 0, total_files)
         finally:
             # Cleanup COM objects and temp files
-            if engine:
-                engine.quit()
+            if ppt_engine:
+                ppt_engine.quit()
+            if pdf_engine:
+                pdf_engine.quit()
             shutil.rmtree(temp_dir, ignore_errors=True)
             self.is_running = False
             self.finish_callback()

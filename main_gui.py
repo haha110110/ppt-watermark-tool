@@ -6,7 +6,7 @@ from task_manager import TaskManager
 class AppGUI(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PPT批量加水印保护工具 (Windows专版)")
+        self.title("PPT & PDF 批量加水印保护工具 (Windows专版)")
         self.geometry("600x620")
         
         self.files = []
@@ -22,7 +22,7 @@ class AppGUI(tk.Tk):
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # 1. PPT Files Selection
-        ttk.Label(main_frame, text="1. 选择需要处理的 PPT 文件 (支持多选):").pack(anchor=tk.W, pady=(0,5))
+        ttk.Label(main_frame, text="1. 选择需要处理的 PPT / PDF 文件 (支持多选):").pack(anchor=tk.W, pady=(0,5))
         
         file_frame = ttk.Frame(main_frame)
         file_frame.pack(fill=tk.X, pady=(0, 15))
@@ -36,7 +36,7 @@ class AppGUI(tk.Tk):
         
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill=tk.X, pady=(0, 15))
-        ttk.Button(btn_frame, text="添加 PPT 文件", command=self.add_files).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(btn_frame, text="添加文件", command=self.add_files).pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(btn_frame, text="清空列表", command=self.clear_files).pack(side=tk.LEFT)
         
         # 2. Watermark Selection
@@ -116,8 +116,8 @@ class AppGUI(tk.Tk):
         
     def add_files(self):
         files = filedialog.askopenfilenames(
-            title="选择 PPT 文件",
-            filetypes=[("PowerPoint Files", "*.ppt *.pptx")]
+            title="选择 PPT 或 PDF 文件",
+            filetypes=[("PowerPoint & PDF Files", "*.ppt *.pptx *.pdf"), ("All Files", "*.*")]
         )
         for f in files:
             if f not in self.files:
@@ -145,7 +145,7 @@ class AppGUI(tk.Tk):
             
     def start_processing(self):
         if not self.files:
-            messagebox.showwarning("警告", "请先添加要处理的 PPT 文件！")
+            messagebox.showwarning("警告", "请先添加要处理的文件！")
             return
         if not self.output_dir:
             messagebox.showwarning("警告", "请选择输出文件夹！")
