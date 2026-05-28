@@ -174,9 +174,9 @@ class AppGUI(tk.Tk):
         if files:
             self.last_input_dir = os.path.dirname(files[0])
             for f in files:
-            if f not in self.files:
-                self.files.append(f)
-                self.file_listbox.insert(tk.END, os.path.basename(f))
+                if f not in self.files:
+                    self.files.append(f)
+                    self.file_listbox.insert(tk.END, os.path.basename(f))
                 
     def clear_files(self):
         self.files = []
